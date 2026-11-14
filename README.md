@@ -2,7 +2,7 @@
 
 A browser-based tool for choosing where to buy a home in Copenhagen and North Zealand. It compares 70 postcode areas by price, school grades, commute, public transport, places to eat and entertainment.
 
-**Open the app:** https://rt9yctw6gv-ai.github.io/cph-nabo/
+**Open the app:** https://rt9yctw6gv-ai.github.io/CPH-nabo/
 
 ## Features
 - Ranking of 70 postcode areas, weighted by what matters to you (affordability, commute, schools, transport, food, entertainment)
