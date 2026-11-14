@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copenhagen Neighbourhood Finder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1d2433;--muted:#667085;--line:#e3e6ec;--accent:#1f6feb;--good:#1a7f37;--warn:#b26b00;--bad:#c4321c}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1218;--panel:#171b23;--ink:#e6e9ef;--muted:#98a1b3;--line:#2a303c;--accent:#4c8dff;--good:#3fb950;--warn:#d29922;--bad:#f0614a}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}
+header .sub{color:var(--muted);font-size:13px}
+main{display:grid;grid-template-columns:330px 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:12px}}
+aside{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card h2{font-size:14px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+label{display:block;margin:8px 0 2px;font-size:13px}
+input[type=number],input[type=text],select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+input[type=range]{width:100%}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.inline{display:flex;gap:6px}
+.w{font-variant-numeric:tabular-nums;color:var(--muted);min-width:28px;text-align:right}
+button{font:inherit;padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.small{padding:3px 8px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+#map{height:440px;border-radius:10px;border:1px solid var(--line)}
+.right{display:flex;flex-direction:column;gap:16px;min-width:0}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tr.sel td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+tbody tr{cursor:pointer}
+.bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle;margin-right:6px}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;border:1px solid var(--line);color:var(--muted)}
+.pill.ok{color:var(--good);border-color:var(--good)}.pill.no{color:var(--bad);border-color:var(--bad)}
+.est{border-bottom:1px dotted var(--muted);cursor:text}
+.real{border-bottom:1px solid var(--good);cursor:text}
+.status{font-size:12px;color:var(--muted);margin-top:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:10px}
+.stat .v{font-size:20px;font-weight:600}.stat .l{font-size:12px;color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+td input{width:80px;padding:2px 4px;font:inherit;text-align:right}
+a{color:var(--accent)}
+.hint{font-size:12px;color:var(--warn)}
+details summary{cursor:pointer;font-size:12px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+textarea{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
+.list button{display:block;width:100%;text-align:left;margin-top:4px;padding:5px 8px}
+.chip{display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;background:var(--bg);color:var(--ink)}
+#addrTbl td:nth-child(3),#addrTbl th:nth-child(3){text-align:left}
+#addrTbl td{white-space:normal}
+.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--accent);border-radius:6px;text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Copenhagen Neighbourhood Finder</h1>
+  <span class="sub">Compare postcode areas in Copenhagen and North Zealand by price, schools, commute, public transport, entertainment and food. Live amenity data from OpenStreetMap.</span>
+</header>
+<main>
+  <aside>
+    <div class="card">
+      <h2>Your property</h2>
+      <label for="ptype">Property type</label>
+      <select id="ptype"><option value="flat">Owner-occupied flat (ejerlejlighed)</option><option value="house">House (villa / rækkehus)</option></select>
+      <label for="budget">Budget (DKK)</label>
+      <input id="budget" type="number" step="100000" value="4500000">
+      <label for="size">Desired size (m²)</label>
+      <input id="size" type="number" step="5" value="85">
+    </div>
+    <div class="card">
+      <h2>Commute</h2>
+      <label for="workq">Workplace address</label>
+      <div class="inline"><input id="workq" type="text" placeholder="e.g. Rådhuspladsen 1, København"><button id="workBtn">Find</button></div>
+      <div class="note" id="workStatus">Or click <b>Set on map</b> and then click your workplace on the map.</div>
+      <div class="row" style="margin-top:6px"><button class="small" id="workMapBtn">Set on map</button><button class="small" id="workClear">Clear</button></div>
+      <label for="mode">Travel by</label>
+      <select id="mode"><option value="transit">Public transport</option><option value="bike">Bike</option><option value="car">Car</option></select>
+      <label for="maxc">Max acceptable commute (minutes)</label>
+      <input id="maxc" type="number" step="5" value="35">
+    </div>
+    <div class="card">
+      <h2>What matters to you</h2>
+      <div id="weights"></div>
+      <p class="note">Each factor is scaled 0–100 across all areas, then combined using these weights. Areas over budget or over your max commute get a penalty.</p>
+    </div>
+    <div class="card">
+      <h2>School grades</h2>
+      <div class="note" id="schoolStatus">Using approximate municipality averages.</div>
+      <label for="schoolFile">Import grades file (CSV or Excel)</label>
+      <input id="schoolFile" type="file" accept=".csv,.txt,.xlsx,.xls">
+      <div class="row" style="margin-top:6px"><button class="small" id="schoolClear">Remove imported grades</button></div>
+      <details style="margin-top:8px"><summary>How to get the file</summary>
+        <p class="note">On <a href="https://uddannelsesstatistik.dk/grundskole/karakterer/" target="_blank" rel="noopener">uddannelsesstatistik.dk → Grundskole → Karakterer</a>, open the 9th-grade exam averages (<i>Dyk ned i data</i>), filter to the municipalities you care about, and export the table (… menu → <i>Eksportér data</i>). The file needs a column with the school name (<i>Institution</i>/<i>Skole</i>) and one with the average grade (<i>Gennemsnit</i>/<i>Karakter</i>). A municipality column (<i>Kommune</i>) is optional but helps. When there are several school years, the most recent is used.</p>
+        <p class="note">The app matches school names to the schools OpenStreetMap lists inside each area. Areas with matches get their own average; others fall back to the imported municipality average.</p>
+      </details>
+    </div>
+    <div class="card">
+      <h2>Live data</h2>
+      <button class="primary" id="fetchBtn">Fetch amenity data</button>
+      <button id="csvBtn">Export CSV</button>
+      <div class="status" id="status"></div>
+      <p class="note">Counts come from OpenStreetMap (Overpass API) within each area's radius and are cached in your browser for 7 days.</p>
+    </div>
+  </aside>
+  <section class="right">
+    <div id="map"></div>
+    <div class="card" id="detail"><h2>Area details</h2><p class="note">Select an area on the map or in the table.</p></div>
+    <div class="card" id="schoolCard">
+      <h2>Schools &amp; specific addresses</h2>
+      <div class="two">
+        <div>
+          <label for="schoolQ">Find a school</label>
+          <input id="schoolQ" type="text" placeholder="School name, postcode or town" autocomplete="off">
+          <div id="schoolResults" class="list"></div>
+          <div id="schoolSel" class="note" style="margin-top:8px">Choose a school to see which postcodes are within walking distance and open home searches there.</div>
+        </div>
+        <div>
+          <label for="addrList">Check specific addresses (one per line, up to 25)</label>
+          <textarea id="addrList" rows="6" placeholder="Paste addresses from listings, e.g.&#10;Strandvejen 100, 2900 Hellerup&#10;Jagtvej 50, 2200 København N"></textarea>
+          <div class="row" style="margin-top:6px"><button class="primary" id="addrBtn">Check addresses</button><span class="note" id="addrStatus"></span></div>
+        </div>
+      </div>
+      <div class="tablewrap" style="margin-top:12px"><table id="addrTbl"></table></div>
+    </div>
+    <div class="card">
+      <h2>Ranking</h2>
+      <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+      <p class="note">Values with a <span class="est">dotted underline</span> are <b>approximate reference estimates</b> (price/m² roughly 2025 market level; school grade = municipality average 9th-grade exam grade). A <span class="real">solid underline</span> means the value came from your imported file or your own edit. Click a value to edit it; edits are saved in this browser. Check current prices on boliga.dk / boligsiden.dk. Commute times are estimates from distance and nearest stations; use the route link in Area details for exact times.</p>
+    </div>
+  </section>
+</main>
+<script>
+// ---------- Reference data (editable estimates) ----------
+// [name, municipality, lat, lon, radius km, flat DKK/m², house DKK/m² (null = few houses)]
+const AREAS_RAW = [
+ ["1050–1473 København K","København",55.6805,12.5830,1.0,72000,null],
+ ["1500–1799 København V","København",55.6690,12.5500,1.0,57000,null],
+ ["1800–1999 Frederiksberg C","Frederiksberg",55.6760,12.5380,0.9,63000,null],
+ ["2000 Frederiksberg","Frederiksberg",55.6820,12.5180,1.3,58000,70000],
+ ["2100 København Ø","København",55.7080,12.5780,1.4,63000,78000],
+ ["2150 Nordhavn","København",55.7180,12.5970,1.0,68000,null],
+ ["2200 København N","København",55.6950,12.5450,1.2,52000,null],
+ ["2300 S – Islands Brygge","København",55.6610,12.5800,0.9,60000,null],
+ ["2300 S – Amagerbro / Sundby","København",55.6600,12.6050,1.3,53000,58000],
+ ["2300 S – Ørestad","København",55.6300,12.5770,1.4,47000,52000],
+ ["2400 København NV","København",55.7100,12.5300,1.3,42000,48000],
+ ["2450 København SV (Sydhavn)","København",55.6500,12.5400,1.2,47000,50000],
+ ["2500 Valby","København",55.6620,12.5050,1.6,46000,52000],
+ ["2600 Glostrup","Glostrup",55.6660,12.3990,1.6,30000,34000],
+ ["2605 Brøndby","Brøndby",55.6500,12.4200,1.5,26000,32000],
+ ["2610 Rødovre","Rødovre",55.6810,12.4540,1.6,32000,36000],
+ ["2620 Albertslund","Albertslund",55.6570,12.3530,1.8,25000,30000],
+ ["2625 Vallensbæk","Vallensbæk",55.6250,12.3850,1.5,30000,34000],
+ ["2635 Ishøj","Ishøj",55.6150,12.3500,1.6,24000,28000],
+ ["2650 Hvidovre","Hvidovre",55.6450,12.4740,1.8,33000,37000],
+ ["2660 Brøndby Strand","Brøndby",55.6230,12.4200,1.3,24000,30000],
+ ["2700 Brønshøj","København",55.7050,12.4950,1.4,42000,46000],
+ ["2720 Vanløse","København",55.6870,12.4900,1.3,45000,50000],
+ ["2730 Herlev","Herlev",55.7240,12.4400,1.7,32000,36000],
+ ["2740 Skovlunde","Ballerup",55.7230,12.4000,1.4,28000,32000],
+ ["2750 Ballerup","Ballerup",55.7310,12.3630,1.8,29000,32000],
+ ["2770 Kastrup","Tårnby",55.6300,12.6250,1.7,38000,40000],
+ ["2791 Dragør","Dragør",55.5930,12.6720,1.5,42000,45000],
+ ["2800 Kgs. Lyngby","Lyngby-Taarbæk",55.7720,12.5000,1.8,45000,48000],
+ ["2820 Gentofte","Gentofte",55.7500,12.5450,1.5,55000,58000],
+ ["2830 Virum","Lyngby-Taarbæk",55.7950,12.4750,1.5,42000,46000],
+ ["2840 Holte","Rudersdal",55.8150,12.4700,1.6,44000,48000],
+ ["2850 Nærum","Rudersdal",55.8150,12.5400,1.4,38000,43000],
+ ["2860 Søborg","Gladsaxe",55.7320,12.5050,1.4,38000,42000],
+ ["2870 Dyssegård","Gentofte",55.7340,12.5320,0.9,45000,50000],
+ ["2880 Bagsværd","Gladsaxe",55.7600,12.4500,1.6,36000,40000],
+ ["2900 Hellerup","Gentofte",55.7330,12.5700,1.3,65000,72000],
+ ["2920 Charlottenlund","Gentofte",55.7550,12.5800,1.3,60000,68000],
+ ["2930 Klampenborg","Gentofte",55.7750,12.5850,1.2,65000,75000],
+ ["2942 Skodsborg","Rudersdal",55.8250,12.5700,1.2,50000,58000],
+ ["2950 Vedbæk","Rudersdal",55.8530,12.5600,1.5,45000,55000],
+ ["2960 Rungsted Kyst","Hørsholm",55.8850,12.5400,1.5,45000,55000],
+ ["2970 Hørsholm","Hørsholm",55.8800,12.5000,1.8,38000,45000],
+ ["2980 Kokkedal","Fredensborg",55.9050,12.5000,1.3,28000,35000],
+ ["2990 Nivå","Fredensborg",55.9330,12.5050,1.5,28000,33000],
+ ["3000 Helsingør","Helsingør",56.0300,12.5900,2.2,28000,30000],
+ ["3050 Humlebæk","Fredensborg",55.9650,12.5300,1.6,33000,38000],
+ ["3060 Espergærde","Helsingør",55.9950,12.5500,1.8,30000,33000],
+ ["3070 Snekkersten","Helsingør",56.0050,12.5900,1.3,32000,35000],
+ ["3100 Hornbæk","Helsingør",56.0900,12.4600,1.5,38000,45000],
+ ["3120 Dronningmølle","Gribskov",56.0970,12.3950,1.4,30000,32000],
+ ["3140 Ålsgårde","Helsingør",56.0700,12.5300,1.4,28000,32000],
+ ["3200 Helsinge","Gribskov",56.0230,12.1970,1.8,22000,24000],
+ ["3210 Vejby","Gribskov",56.0800,12.1400,1.5,25000,28000],
+ ["3220 Tisvildeleje","Gribskov",56.0500,12.0750,1.5,35000,40000],
+ ["3230 Græsted","Gribskov",56.0650,12.2850,1.5,22000,24000],
+ ["3250 Gilleleje","Gribskov",56.1200,12.3100,1.6,30000,32000],
+ ["3300 Frederiksværk","Halsnæs",55.9700,12.0250,1.8,18000,18000],
+ ["3310 Ølsted","Halsnæs",55.9150,12.0700,1.3,18000,20000],
+ ["3320 Skævinge","Hillerød",55.9100,12.1500,1.4,20000,22000],
+ ["3360 Liseleje","Halsnæs",56.0100,11.9650,1.4,25000,28000],
+ ["3390 Hundested","Halsnæs",55.9650,11.8550,1.6,22000,22000],
+ ["3400 Hillerød","Hillerød",55.9270,12.3000,2.5,32000,32000],
+ ["3450 Allerød","Allerød",55.8700,12.3550,2.0,32000,34000],
+ ["3460 Birkerød","Rudersdal",55.8450,12.4300,1.8,38000,40000],
+ ["3480 Fredensborg","Fredensborg",55.9750,12.4050,1.6,28000,30000],
+ ["3490 Kvistgård","Helsingør",56.0000,12.4900,1.4,25000,27000],
+ ["3500 Værløse","Furesø",55.7820,12.3700,1.8,34000,36000],
+ ["3520 Farum","Furesø",55.8100,12.3600,1.8,30000,33000],
+ ["3540 Lynge","Allerød",55.8380,12.2800,1.5,26000,30000],
+];
+// Approximate municipality average 9th-grade exam grade (reference estimate)
+const MUNI_GRADE = {"København":7.3,"Frederiksberg":7.7,"Gentofte":8.1,"Lyngby-Taarbæk":8.0,"Rudersdal":8.0,"Gladsaxe":7.2,"Herlev":6.8,"Rødovre":6.6,
+  "Hvidovre":6.7,"Tårnby":6.8,"Dragør":7.6,"Brøndby":6.2,"Glostrup":6.7,"Ballerup":6.7,"Albertslund":6.3,"Vallensbæk":7.0,"Ishøj":5.9,
+  "Hørsholm":7.9,"Fredensborg":7.0,"Helsingør":6.9,"Gribskov":6.9,"Halsnæs":6.3,"Hillerød":7.2,"Allerød":7.4,"Furesø":7.3};
+
+// ---------- Amenity categories (Overpass) ----------
+const CATS = {
+  rail:  {label:"Train/metro/light-rail stations", q:'nwr["railway"~"^(station|halt|tram_stop)$"]'},
+  bus:   {label:"Bus stops", q:'node["highway"="bus_stop"]'},
+  food:  {label:"Restaurants & cafés", q:'nwr["amenity"~"^(restaurant|cafe|fast_food|bakery|ice_cream)$"]'},
+  ent:   {label:"Bars, cinemas, theatres, culture", q:'nwr["amenity"~"^(bar|pub|nightclub|cinema|theatre|arts_centre|music_venue)$"]'},
+  green: {label:"Parks & sports", q:'nwr["leisure"~"^(park|sports_centre|fitness_centre|swimming_pool)$"]'},
+  school:{label:"Schools", q:'nwr["amenity"="school"]'},
+  kinder:{label:"Kindergartens", q:'nwr["amenity"="kindergarten"]'},
+};
+const ENDPOINTS = ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
+const BBOX = "55.55,11.80,56.15,12.72";
+const K = {osm:"cphnabo.osm.v2", st:"cphnabo.stations.v2", edits:"cphnabo.edits.v2", prefs:"cphnabo.prefs.v2", grades:"cphnabo.grades.v1", sch:"cphnabo.schools.v1"};
+const CACHE_TTL = 7*24*3600*1000;
+
+const WEIGHTS = [
+  ["price","Affordability",5],["commute","Commute",4],["schools","Schools",4],["transport","Public transport nearby",3],
+  ["food","Places to eat",3],["ent","Entertainment & leisure",3],
+];
+
+// ---------- Storage helpers (never fail) ----------
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},
+  del(k){try{localStorage.removeItem(k)}catch{}}
+};
+
+let osm = store.get(K.osm,{});
+let stations = store.get(K.st,null);
+let edits = store.get(K.edits,{});
+let grades = store.get(K.grades,null); // {schools:{normName:{name,grade,muni}}, munis:{normMuni:grade}, file, n}
+let prefs = Object.assign({ptype:"flat",budget:4500000,size:85,mode:"transit",maxc:35,work:null,walk:15,
+  weights:Object.fromEntries(WEIGHTS.map(w=>[w[0],w[2]]))}, store.get(K.prefs,{}));
+for(const [k,,d] of WEIGHTS) if(prefs.weights[k]==null) prefs.weights[k]=d;
+let selected = null, sortKey = "score", sortDir = -1, pickingWork = false;
+
+const areas = AREAS_RAW.map(([name,muni,lat,lon,r,flat,house],i)=>({id:i,name,muni,lat,lon,r,flat,house,grade:MUNI_GRADE[muni]}));
+function edited(a,k){const e=edits[a.name];return e&&e[k]!=null}
+function val(a,k){return edited(a,k)?edits[a.name][k]:a[k]}
+function km2(a){return Math.PI*a.r*a.r}
+function savePrefs(){store.set(K.prefs,prefs)}
+
+// ---------- Geo ----------
+function hav(lat1,lon1,lat2,lon2){const R=6371,r=Math.PI/180,dl=(lat2-lat1)*r,dn=(lon2-lon1)*r;
+  const x=Math.sin(dl/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function nearestStation(lat,lon){let best=null;for(const s of stations||[]){const d=hav(lat,lon,s[0],s[1]);if(!best||d<best.d)best={d,s}}return best}
+
+// Commute estimate (minutes). Deliberately simple and transparent.
+function commute(a){
+  const w=prefs.work; if(!w) return null;
+  const d=hav(a.lat,a.lon,w.lat,w.lon);
+  if(prefs.mode==="bike") return {min:d*1.25/15*60+3, d};
+  if(prefs.mode==="car")  return {min:d*1.35/32*60+6, d};      // incl. parking
+  const walkMin = km=>km*1.3/5*60;
+  let opts=[];
+  if(d<1.5) opts.push({min:walkMin(d),via:"walk"});
+  // bus: walk to stop ~4 min, avg wait 5, ~18 km/h door-to-door-ish
+  opts.push({min:4+5+d*1.35/(d>10?30:18)*60,via:"bus"});
+  if(stations&&stations.length){
+    const s1=nearestStation(a.lat,a.lon), s2=nearestStation(w.lat,w.lon);
+    if(s1&&s2&&s1.s!==s2.s){
+      const ride=hav(s1.s[0],s1.s[1],s2.s[0],s2.s[1]);
+      const access=s=>Math.min(walkMin(s.d), 4+s.d*1.3/12*60); // walk or short bus/bike
+      opts.push({min:access(s1)+5+ride*(ride>15?1.1:1.15)/(ride>15?60:40)*60+2+access(s2),via:`${s1.s[2]||"station"} → ${s2.s[2]||"station"}`});
+    }
+  }
+  const best=opts.reduce((x,y)=>y.min<x.min?y:x);
+  return {...best,d};
+}
+
+// ---------- Overpass ----------
+async function overpass(q){
+  let lastErr;
+  for(const ep of ENDPOINTS){
+    try{
+      const r = await fetch(ep,{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+      if(r.status===429||r.status>=500){lastErr=new Error("HTTP "+r.status);continue}
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return await r.json();
+    }catch(e){lastErr=e}
+  }
+  throw lastErr;
+}
+async function fetchArea(a){
+  const around = `(around:${Math.round(a.r*1000)},${a.lat},${a.lon})`;
+  const q = "[out:json][timeout:60];" + Object.values(CATS).map(c=>`${c.q}${around};out count;`).join("") + `${CATS.school.q}${around};out tags;`;
+  const j = await overpass(q);
+  const counts = j.elements.filter(e=>e.type==="count").map(e=>+e.tags.total);
+  const keys = Object.keys(CATS);
+  if(counts.length!==keys.length) throw new Error("Unexpected response");
+  const schools = [...new Set(j.elements.filter(e=>e.type!=="count"&&e.tags?.name).map(e=>e.tags.name))];
+  osm[a.name] = {t:Date.now(), c:Object.fromEntries(keys.map((k,i)=>[k,counts[i]])), schools};
+  store.set(K.osm,osm);
+}
+async function fetchStations(){
+  const j = await overpass(`[out:json][timeout:60];(nwr["railway"~"^(station|halt)$"](${BBOX});nwr["station"="subway"](${BBOX});nwr["railway"="tram_stop"](${BBOX}););out center tags;`);
+  const seen=new Set();
+  stations = j.elements.map(e=>[e.lat??e.center?.lat, e.lon??e.center?.lon, e.tags?.name||""]).filter(s=>{
+    if(s[0]==null) return false; const k=s[2]+Math.round(s[0]*200)+Math.round(s[1]*200); if(seen.has(k)) return false; seen.add(k); return true});
+  store.set(K.st,{t:Date.now(),s:stations});
+}
+async function fetchAll(force){
+  const btn = document.getElementById("fetchBtn"), st = document.getElementById("status");
+  btn.disabled = true;
+  let done=0, failed=[];
+  const stc = store.get(K.st,null);
+  if(force || !stc || Date.now()-stc.t>CACHE_TTL){
+    st.textContent="Fetching station locations…";
+    try{await fetchStations()}catch(e){failed.push("stations")}
+  }
+  const scc = store.get(K.sch,null);
+  if(force || !scc || Date.now()-scc.t>CACHE_TTL){
+    st.textContent="Fetching school locations…";
+    try{await fetchSchools()}catch(e){failed.push("school list")}
+  }
+  for(const a of areas){
+    const c = osm[a.name];
+    if(!force && c && Date.now()-c.t<CACHE_TTL){done++;continue}
+    st.textContent = `Fetching ${a.name}… (${done}/${areas.length})`;
+    try{await fetchArea(a)}catch(e){failed.push(a.name)}
+    done++; render();
+    await new Promise(r=>setTimeout(r,800)); // be polite to the public API
+  }
+  st.textContent = failed.length ? `Done. Failed: ${failed.join(", ")}. Click the button again in a minute to retry those.` : `Amenity data loaded for all ${areas.length} areas.`;
+  btn.disabled = false; btn.textContent = failed.length ? "Retry failed areas" : "Refresh amenity data";
+  btn.dataset.force = failed.length ? "" : "1";
+  render();
+}
+if(stations&&stations.s) stations=stations.s; else if(stations&&!Array.isArray(stations)) stations=null;
+
+// ---------- School grade import ----------
+const normSchool = s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g,"")
+  .replace(/\(.*?\)/g," ").replace(/\b(skolen|skole|school|afd\.?|afdeling|den|det|de|privat|fri|og|the)\b/g," ").replace(/[^a-z0-9æøå]+/g," ").trim();
+const normMuni = s=>String(s||"").toLowerCase().replace(/kommune/g,"").replace(/[^a-zæøå-]/g,"").replace(/s$/,"");
+const toNum = v=>{if(typeof v==="number")return v;const n=parseFloat(String(v??"").replace(/\s/g,"").replace(",","."));return isFinite(n)?n:null};
+
+function parseGradeRows(rows){
+  // find header row
+  let hi=-1;
+  for(let i=0;i<Math.min(rows.length,30);i++){
+    const r=rows[i].map(c=>String(c??"").toLowerCase());
+    if(r.some(c=>/institution|skole(?!år)|school/.test(c)) && r.some(c=>/gennemsnit|karakter|grade|average|snit/.test(c))){hi=i;break}
+  }
+  if(hi<0) throw new Error("Couldn't find a header row with a school name column and a grade column.");
+  const H=rows[hi].map(c=>String(c??"").toLowerCase().trim());
+  const pick=(re,avoid)=>H.findIndex(h=>re.test(h)&&!(avoid&&avoid.test(h)));
+  const iName = [pick(/institutionsnavn|skolenavn/), pick(/institution|skole(?!år)|school/,/nummer|nr|kode|type|kommune|id/)].find(i=>i>=0);
+  let iGrade = pick(/gennemsnit|karaktergennemsnit|average/,/socio|forskel|reference|antal|uden/);
+  if(iGrade<0) iGrade = pick(/karakter|grade|snit/,/socio|forskel|reference|antal|type/);
+  const iMuni = pick(/kommune|municipality/,/nr|kode/);
+  const iYear = pick(/skoleår|^år$|year|periode/);
+  if(iName==null||iName<0||iGrade<0) throw new Error("Couldn't identify the school name and grade columns.");
+  const schools={};
+  for(const r of rows.slice(hi+1)){
+    const name=r[iName], g=toNum(r[iGrade]); if(!name||g==null||g<-3||g>12) continue;
+    const key=normSchool(name); if(!key) continue;
+    const yr=iYear>=0?String(r[iYear]??""):"";
+    if(!schools[key] || yr>schools[key].yr) schools[key]={name:String(name),grade:g,muni:iMuni>=0?String(r[iMuni]??""):"",yr};
+  }
+  const list=Object.values(schools); if(!list.length) throw new Error("No rows with a school name and a numeric grade were found.");
+  const acc={}; for(const s of list){if(!s.muni)continue;const m=normMuni(s.muni);(acc[m]=acc[m]||[]).push(s.grade)}
+  const munis=Object.fromEntries(Object.entries(acc).map(([m,v])=>[m,v.reduce((a,b)=>a+b,0)/v.length]));
+  return {schools, munis, n:list.length, cols:{name:H[iName],grade:H[iGrade],muni:iMuni>=0?H[iMuni]:null,year:iYear>=0?H[iYear]:null}};
+}
+async function importGrades(file){
+  const st=document.getElementById("schoolStatus");
+  try{
+    let rows;
+    if(/\.xlsx?$/i.test(file.name)){
+      if(!window.XLSX) throw new Error("The Excel reader didn't load; export as CSV instead.");
+      const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+      rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
+    } else {
+      let text=await file.text(); text=text.replace(/^﻿/,"");
+      const first=text.split(/\r?\n/,1)[0]; const delim=[";","\t",","].sort((a,b)=>first.split(b).length-first.split(a).length)[0];
+      rows=parseCsv(text,delim);
+    }
+    const g=parseGradeRows(rows); g.file=file.name; grades=g; store.set(K.grades,g);
+    render(); updateSchoolStatus();
+  }catch(e){st.innerHTML=`<span class="hint">Import failed: ${e.message}</span>`}
+}
+function parseCsv(text,d){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true; else if(c===d){row.push(f);f=""} else if(c==="\n"){row.push(f.replace(/\r$/,""));rows.push(row);row=[];f=""} else f+=c}
+  if(f||row.length){row.push(f);rows.push(row)} return rows;
+}
+function updateSchoolStatus(){
+  const st=document.getElementById("schoolStatus");
+  if(!grades){st.textContent="Using approximate municipality averages.";return}
+  const matched=areas.filter(a=>schoolInfo(a).src==="schools").length;
+  st.innerHTML=`Imported <b>${grades.n}</b> schools from <i>${esc(grades.file)}</i> (columns: “${esc(grades.cols.name)}”, “${esc(grades.cols.grade)}”${grades.cols.muni?`, “${esc(grades.cols.muni)}”`:""}). `+
+    (Object.keys(osm).length?`${matched} of ${areas.length} areas matched to named schools.`:"Fetch amenity data to match schools to areas.");
+}
+function schoolInfo(a){
+  if(edited(a,"grade")) return {grade:val(a,"grade"),src:"edit"};
+  if(grades){
+    const names=osm[a.name]?.schools||[], hits=[];
+    for(const n of names){const k=normSchool(n); if(k.length<4) continue;
+      let s=grades.schools[k];
+      if(!s) for(const [gk,gs] of Object.entries(grades.schools)){ if(gk.length>=5&&(gk.includes(k)||k.includes(gk))&&(!gs.muni||muniMatch(gs.muni,a.muni))){s=gs;break} }
+      if(s && !hits.includes(s)) hits.push(s);
+    }
+    if(hits.length) return {grade:hits.reduce((x,s)=>x+s.grade,0)/hits.length,src:"schools",hits};
+    const m=Object.entries(grades.munis).find(([k])=>muniMatch(k,a.muni));
+    if(m) return {grade:m[1],src:"muni"};
+  }
+  return {grade:a.grade,src:"est"};
+}
+function muniMatch(x,y){x=normMuni(x);y=normMuni(y);return x&&y&&(x===y||x.startsWith(y)||y.startsWith(x))}
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ---------- Scoring ----------
+function metrics(a){
+  const c = osm[a.name]?.c, A = km2(a);
+  const usesHouse = prefs.ptype==="house" && val(a,"house")!=null;
+  const pk = usesHouse?"house":"flat";
+  const ppm = val(a,pk), cost = ppm*prefs.size;
+  const si = schoolInfo(a), cm = commute(a);
+  const m = {pk, ppm, cost, fits: cost<=prefs.budget, grade: si.grade, si, cm, hasOsm: !!c, noHouses: prefs.ptype==="house"&&!usesHouse};
+  if(c){
+    Object.assign(m,{rail:c.rail,bus:c.bus,food:c.food,entN:c.ent,green:c.green,school:c.school,kinder:c.kinder});
+    m.transport = (c.rail*8 + c.bus)/A;         // a station counts like 8 bus stops
+    m.foodD = c.food/A;
+    m.entD = (c.ent + c.green*0.5)/A;
+    m.schoolD = (c.school + c.kinder*0.5)/A;
+  }
+  return m;
+}
+function norm(vals){const v=vals.filter(x=>x!=null&&isFinite(x));if(!v.length)return()=>null;const lo=Math.min(...v),hi=Math.max(...v);return x=>x==null||!isFinite(x)?null:hi===lo?50:(x-lo)/(hi-lo)*100}
+function scoreAll(){
+  const M = areas.map(metrics);
+  const L = x=>x==null?null:Math.log1p(x);   // log-scale densities so the city centre doesn't flatten the rest
+  const nPrice = norm(M.map(m=>-m.ppm)), nGrade = norm(M.map(m=>m.grade)), nSchD = norm(M.map(m=>L(m.schoolD)));
+  const nTr = norm(M.map(m=>L(m.transport))), nFood = norm(M.map(m=>L(m.foodD))), nEnt = norm(M.map(m=>L(m.entD)));
+  const nCm = norm(M.map(m=>m.cm?-m.cm.min:null));
+  const w = prefs.weights;
+  return areas.map((a,i)=>{
+    const m=M[i];
+    const s = {price:nPrice(-m.ppm), schools: m.hasOsm? nGrade(m.grade)*0.75 + nSchD(L(m.schoolD))*0.25 : nGrade(m.grade),
+               transport:nTr(L(m.transport)), food:nFood(L(m.foodD)), ent:nEnt(L(m.entD)), commute:m.cm?nCm(-m.cm.min):null};
+    let tw=0,ts=0;
+    for(const [k] of WEIGHTS){ if(s[k]!=null && w[k]>0){tw+=w[k];ts+=w[k]*s[k]} }
+    let score = tw? ts/tw : 0;
+    if(!m.fits) score *= 0.85;
+    if(m.cm && m.cm.min>prefs.maxc) score *= 0.85;
+    return {a,m,s,score};
+  });
+}
+
+// ---------- UI ----------
+const fmt = n=>n==null?"–":Math.round(n).toLocaleString("da-DK");
+const fmtM = n=>(n/1e6).toFixed(2).replace(".",",")+" M";
+const fmtG = g=>g==null?"–":g.toFixed(1).replace(".",",");
+function color(score){const h=Math.round(score*1.2);return `hsl(${h} 65% 45%)`}
+
+function buildWeights(){
+  const el = document.getElementById("weights");
+  el.innerHTML = WEIGHTS.map(([k,l])=>`<label for="w_${k}"><span class="row"><span>${l}</span><span class="w" id="wv_${k}">${prefs.weights[k]}</span></span></label><input type="range" id="w_${k}" min="0" max="5" value="${prefs.weights[k]}">`).join("");
+  for(const [k] of WEIGHTS){
+    document.getElementById("w_"+k).oninput = e=>{prefs.weights[k]=+e.target.value;document.getElementById("wv_"+k).textContent=e.target.value;savePrefs();render()};
+  }
+}
+
+const COLS = [
+  ["rank","#"],["name","Area"],["score","Score"],["ppm","DKK/m²"],["cost","Est. cost"],["commute","Commute"],["grade","School grade"],
+  ["transport","Transport"],["food","Food"],["ent","Entertainment"]
+];
+function render(){
+  const rows = scoreAll();
+  const ranked = [...rows].sort((x,y)=>y.score-x.score);
+  ranked.forEach((r,i)=>r.rank=i+1);
+  const key = r=>({rank:r.rank,name:r.a.name,score:r.score,ppm:r.m.ppm,cost:r.m.cost,commute:r.m.cm?-r.m.cm.min:-1e9,grade:r.m.grade,transport:r.s.transport??-1,food:r.s.food??-1,ent:r.s.ent??-1})[sortKey];
+  const sorted = [...rows].sort((x,y)=>{const a=key(x),b=key(y);return (a>b?1:a<b?-1:0)*(sortKey==="name"||sortKey==="rank"?-sortDir:sortDir)});
+  const thead = document.querySelector("#tbl thead"), tbody = document.querySelector("#tbl tbody");
+  thead.innerHTML = "<tr>"+COLS.map(([k,l])=>`<th data-k="${k}">${l}${k===sortKey?(sortDir<0?" ▾":" ▴"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=-1}render()});
+  const sub = x=>x==null?'<span class="note">–</span>':`<span class="bar" style="width:${Math.max(2,x*0.5)}px"></span>${Math.round(x)}`;
+  tbody.innerHTML = sorted.map(r=>{const m=r.m;return `<tr data-id="${r.a.id}" class="${selected===r.a.id?"sel":""}">
+    <td>${r.rank}</td><td>${esc(r.a.name)}</td>
+    <td><b>${Math.round(r.score)}</b></td>
+    <td><span class="${edited(r.a,m.pk)?"real":"est"}" data-edit="${m.pk}" data-name="${esc(r.a.name)}">${fmt(m.ppm)}</span>${m.noHouses?' <span class="pill" title="Few houses here; flat price shown">flat</span>':""}</td>
+    <td>${fmtM(m.cost)} <span class="pill ${m.fits?"ok":"no"}">${m.fits?"in budget":"over"}</span></td>
+    <td>${m.cm?`${Math.round(m.cm.min)} min${m.cm.min>prefs.maxc?' <span class="pill no">long</span>':""}`:'<span class="note">set workplace</span>'}</td>
+    <td><span class="${m.si.src==="est"?"est":"real"}" data-edit="grade" data-name="${esc(r.a.name)}" title="${{est:"Estimate (municipality)",muni:"Imported municipality average",schools:"Average of matched schools in this area",edit:"Your edit"}[m.si.src]}">${fmtG(m.grade)}</span></td>
+    <td>${sub(r.s.transport)}</td><td>${sub(r.s.food)}</td><td>${sub(r.s.ent)}</td></tr>`}).join("");
+  tbody.querySelectorAll("tr").forEach(tr=>tr.onclick=e=>{if(e.target.closest(".est,.real,input"))return;select(+tr.dataset.id,true)});
+  tbody.querySelectorAll(".est,.real").forEach(sp=>sp.onclick=()=>editCell(sp));
+  renderMap(rows);
+  if(addrLayer) renderAddr();
+  if(selected!=null) renderDetail(rows.find(r=>r.a.id===selected), ranked.length);
+  updateSchoolStatus();
+}
+function editCell(sp){
+  const k=sp.dataset.edit, name=sp.dataset.name, a=areas.find(x=>x.name===name);
+  const cur = k==="grade" ? schoolInfo(a).grade : val(a,k);
+  const inp=document.createElement("input"); inp.type="number"; inp.step=k==="grade"?"0.1":"1000"; inp.value=cur!=null?(+cur).toFixed(k==="grade"?1:0):"";
+  sp.replaceWith(inp); inp.focus(); inp.select();
+  const commit=()=>{const v=parseFloat(inp.value); edits[name]=edits[name]||{};
+    if(inp.value.trim()==="") delete edits[name][k]; else if(isFinite(v)) edits[name][k]=v;
+    store.set(K.edits,edits); render()};
+  inp.onblur=commit; inp.onkeydown=e=>{if(e.key==="Enter")inp.blur();if(e.key==="Escape"){inp.onblur=null;render()}};
+}
+
+// ---------- Map ----------
+let map, layers={}, poiLayer, workMarker;
+function initMap(){
+  map = L.map("map",{scrollWheelZoom:false}).fitBounds(areas.map(a=>[a.lat,a.lon]),{padding:[20,20]});
+  // Several key-free tile providers; if one fails to load, switch to the next automatically.
+  const OSMA='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  const BASES = {
+    "Esri streets": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles &copy; Esri"}),
+    "CARTO": L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19,subdomains:"abcd",attribution:OSMA+' &copy; <a href="https://carto.com/attributions">CARTO</a>'}),
+    "OSM Humanitarian": L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19,subdomains:"abc",attribution:OSMA+", tiles by HOT / OSM France"}),
+    "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:OSMA}),
+  };
+  const names=Object.keys(BASES);
+  let saved=store.get("cphnabo.base",names[0]); if(!BASES[saved]) saved=names[0];
+  let current=null;
+  const useBase=n=>{ if(current) map.removeLayer(BASES[current]); current=n; BASES[n].addTo(map); store.set("cphnabo.base",n); };
+  for(const n of names){
+    let ok=0, bad=0;
+    BASES[n].on("tileload",()=>ok++).on("tileerror",()=>{ bad++;
+      if(current===n && ok===0 && bad===4){ const next=names[(names.indexOf(n)+1)%names.length];
+        document.getElementById("status").textContent=`Map tiles from ${n} failed to load; switched to ${next}.`; useBase(next); } });
+  }
+  useBase(saved);
+  L.control.layers(BASES,null,{position:"topright"}).addTo(map);
+  map.on("baselayerchange",e=>{current=e.name; store.set("cphnabo.base",e.name)});
+  poiLayer = L.layerGroup().addTo(map);
+  map.on("click",e=>{ if(!pickingWork) return; pickingWork=false; map.getContainer().style.cursor="";
+    setWork({lat:e.latlng.lat,lon:e.latlng.lng,label:`Map point ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`}); });
+}
+function renderMap(rows){
+  for(const r of rows){
+    const style={color:color(r.score),fillColor:color(r.score),fillOpacity:selected===r.a.id?0.45:0.22,weight:selected===r.a.id?3:1};
+    if(!layers[r.a.id]){
+      layers[r.a.id]=L.circle([r.a.lat,r.a.lon],{radius:r.a.r*1000,...style}).addTo(map).on("click",e=>{if(pickingWork)return; L.DomEvent.stopPropagation(e); select(r.a.id,false)});
+    } else layers[r.a.id].setStyle(style);
+    layers[r.a.id].bindTooltip(`<b>${esc(r.a.name)}</b><br>Score ${Math.round(r.score)}${r.m.cm?` · ${Math.round(r.m.cm.min)} min commute`:""}`);
+  }
+  if(workMarker){workMarker.remove();workMarker=null}
+  if(prefs.work) workMarker=L.marker([prefs.work.lat,prefs.work.lon],{title:"Workplace"}).bindTooltip("Workplace: "+esc(prefs.work.label)).addTo(map);
+}
+function select(id,pan){
+  selected=id; const a=areas[id];
+  if(pan) map.flyTo([a.lat,a.lon],13,{duration:.6});
+  render(); loadPois(a);
+  document.getElementById("detail").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+const POI_STYLE = {rail:"#1f6feb",food:"#d9480f",ent:"#9c36b5",school:"#2b8a3e"};
+async function loadPois(a){
+  poiLayer.clearLayers();
+  const around=`(around:${Math.round(a.r*1000)},${a.lat},${a.lon})`;
+  const q=`[out:json][timeout:60];(${CATS.rail.q}${around};nwr["station"="subway"]${around};);out center 200;(${CATS.food.q}${around};);out center 300;(${CATS.ent.q}${around};);out center 200;(${CATS.school.q}${around};);out center 100;`;
+  try{
+    const j=await overpass(q); if(selected!==a.id) return;
+    for(const e of j.elements){
+      const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon; if(lat==null) continue;
+      const t=e.tags||{};
+      const cat = t.railway||t.station ? "rail" : t.amenity==="school" ? "school" : /^(restaurant|cafe|fast_food|bakery|ice_cream)$/.test(t.amenity)?"food":"ent";
+      L.circleMarker([lat,lon],{radius:cat==="rail"?6:4,color:POI_STYLE[cat],weight:1,fillOpacity:.8})
+        .bindTooltip(`${esc(t.name||"(unnamed)")}<br><span style="opacity:.7">${esc(t.amenity||t.railway||t.station||t.leisure||"")}${t.cuisine?" · "+esc(t.cuisine):""}</span>`).addTo(poiLayer);
+    }
+  }catch(e){/* markers are optional */}
+}
+
+function renderDetail(r,n){
+  const el=document.getElementById("detail"), m=r.m, a=r.a;
+  const st=(v,l)=>`<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const srcTxt={est:"estimate, municipality avg.",muni:"imported, municipality avg.",schools:`avg. of ${m.si.hits?.length} matched school${m.si.hits?.length===1?"":"s"}`,edit:"your edit"}[m.si.src];
+  const gm = prefs.work ? `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lon}&destination=${prefs.work.lat},${prefs.work.lon}&travelmode=${{transit:"transit",bike:"bicycling",car:"driving"}[prefs.mode]}` : null;
+  el.innerHTML=`<h2>Area details</h2>
+  <div class="row" style="margin-bottom:10px"><div><b style="font-size:18px">${esc(a.name)}</b> <span class="note">${esc(a.muni)} kommune · radius ${a.r} km</span></div>
+  <div><span class="pill">Rank ${r.rank} of ${n}</span> <span class="pill" style="color:${color(r.score)};border-color:${color(r.score)}">Score ${Math.round(r.score)}</span></div></div>
+  <div class="grid">
+   ${st(fmt(m.ppm)+" kr",`Price per m² (${edited(a,m.pk)?"your edit":"est."}${m.noHouses?", flat price":""})`)}
+   ${st(fmtM(m.cost)+" kr",`${prefs.size} m² ${prefs.ptype==="house"?"house":"flat"} · ${m.fits?"within":"over"} budget`)}
+   ${m.cm?st(Math.round(m.cm.min)+" min",`Commute by ${prefs.mode==="transit"?"public transport":prefs.mode} (est.) · ${m.cm.d.toFixed(1).replace(".",",")} km`):""}
+   ${st(fmtG(m.grade),`School exam grade (${srcTxt})`)}
+   ${m.hasOsm?st(m.rail,"Train / metro / light-rail stops")+st(m.bus,"Bus stops")+st(m.food,"Restaurants & cafés")+st(m.entN,"Bars, cinemas, culture")+st(m.green,"Parks & sports")+st(m.school+" / "+m.kinder,"Schools / kindergartens"):'<p class="note">Fetch amenity data to see transport, food and entertainment counts.</p>'}
+  </div>
+  ${m.cm&&m.cm.via?`<p class="note">Estimated route: ${esc(m.cm.via)}. ${gm?`<a href="${gm}" target="_blank" rel="noopener">Check the exact route in Google Maps ↗</a>`:""}</p>`:gm?`<p class="note"><a href="${gm}" target="_blank" rel="noopener">Check the exact route in Google Maps ↗</a></p>`:""}
+  <p style="margin:12px 0 4px"><b>Homes for sale here</b> <span class="note">(filtered to your budget, size and property type)</span></p>
+  <div class="row" style="justify-content:flex-start">${listingLinks(a).map(l=>`<a class="btnlink" href="${l.url}" target="_blank" rel="noopener">${l.label} ↗</a>`).join("")}</div>
+  ${osm[a.name]?.schools?.length?`<p class="note" style="margin-top:10px">Schools in this area (click one for homes within walking distance): ${osm[a.name].schools.slice(0,30).map(n=>`<span class="chip" data-school="${esc(n)}">${esc(n)}</span>`).join("")}</p>`:""}
+  ${m.si.src==="schools"?`<p class="note">Matched schools: ${m.si.hits.map(s=>`${esc(s.name)} (${fmtG(s.grade)})`).join(", ")}</p>`:""}
+  <p class="note" style="margin-top:10px">Sub-scores (0–100): affordability ${Math.round(r.s.price)}, commute ${r.s.commute==null?"–":Math.round(r.s.commute)}, schools ${Math.round(r.s.schools)}, transport ${r.s.transport==null?"–":Math.round(r.s.transport)}, food ${r.s.food==null?"–":Math.round(r.s.food)}, entertainment ${r.s.ent==null?"–":Math.round(r.s.ent)}. Map markers: <span style="color:${POI_STYLE.rail}">● stations</span> <span style="color:${POI_STYLE.food}">● food</span> <span style="color:${POI_STYLE.ent}">● entertainment</span> <span style="color:${POI_STYLE.school}">● schools</span></p>`;
+}
+
+
+// ---------- Listing links (open the portals' own searches; no scraping) ----------
+const MUNI_SLUG = {"København":"koebenhavn","Frederiksberg":"frederiksberg"};
+function listingLinks(a){
+  const zip=(a.name.match(/^\d{4}(?!–)/)||[])[0];
+  const flat=prefs.ptype==="flat";
+  const bsType=flat?"ejerlejlighed":"villa", blType=flat?3:1;
+  const q=`priceMax=${Math.round(prefs.budget)}`;
+  if(zip) return [
+    {label:"Boligsiden",url:`https://www.boligsiden.dk/postnummer/${zip}/tilsalg/${bsType}?${q}&areaMin=${prefs.size}`},
+    {label:"Boliga",url:`https://www.boliga.dk/resultat?zipCodes=${zip}&propertyType=${blType}&${q}&sizeMin=${prefs.size}`},
+  ];
+  const slug=MUNI_SLUG[a.muni];   // postcode ranges (K, V, Frb C): search the municipality
+  return [
+    {label:`Boligsiden (${a.muni})`,url:`https://www.boligsiden.dk/kommune/${slug}/tilsalg/${bsType}?${q}&areaMin=${prefs.size}`},
+    {label:`Boliga (${a.muni})`,url:`https://www.boliga.dk/resultat?municipality=${a.muni==="København"?101:147}&propertyType=${blType}&${q}&sizeMin=${prefs.size}`},
+  ];
+}
+function listingLinksZip(zip){
+  const flat=prefs.ptype==="flat", q=`priceMax=${Math.round(prefs.budget)}`;
+  return [
+    {label:`Boligsiden ${zip}`,url:`https://www.boligsiden.dk/postnummer/${zip}/tilsalg/${flat?"ejerlejlighed":"villa"}?${q}&areaMin=${prefs.size}`},
+    {label:`Boliga ${zip}`,url:`https://www.boliga.dk/resultat?zipCodes=${zip}&propertyType=${flat?3:1}&${q}&sizeMin=${prefs.size}`},
+  ];
+}
+
+// ---------- Schools & specific addresses ----------
+let schoolsAll = (store.get(K.sch,null)||{}).list||null;
+let selSchool = store.get("cphnabo.selschool",null);
+let addrResults = store.get("cphnabo.addr",[]);
+let schoolLayer, addrLayer;
+const walkKm = min=>min/60*5/1.3;        // straight-line km reachable on foot (streets ~30% longer, 5 km/h)
+const walkMinOf = km=>km*1.3/5*60;
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+
+async function fetchSchools(){
+  const j=await overpass(`[out:json][timeout:90];nwr["amenity"="school"](${BBOX});out center tags;`);
+  const seen=new Set();
+  schoolsAll=j.elements.map(e=>{const t=e.tags||{};return {n:t.name,lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,
+      pc:t["addr:postcode"]||"",addr:[t["addr:street"],t["addr:housenumber"]].filter(Boolean).join(" "),city:t["addr:city"]||""}})
+    .filter(x=>{if(!x.n||x.lat==null)return false;const k=x.n+"|"+x.pc+"|"+x.lat.toFixed(3);if(seen.has(k))return false;seen.add(k);return true});
+  store.set(K.sch,{t:Date.now(),list:schoolsAll});
+}
+function gradeOf(name){
+  if(!grades) return null;
+  const k=normSchool(name); if(!k) return null;
+  let s=grades.schools[k];
+  if(!s && k.length>=5) for(const [gk,gs] of Object.entries(grades.schools)){ if(gk.length>=5&&(gk.includes(k)||k.includes(gk))){s=gs;break} }
+  return s?s.grade:null;
+}
+function nearestSchools(lat,lon,n){
+  if(!schoolsAll) return [];
+  return schoolsAll.map(x=>({x,d:hav(lat,lon,x.lat,x.lon)})).sort((a,b)=>a.d-b.d).slice(0,n);
+}
+function searchSchools(q){
+  const nq=q.toLowerCase().trim(); if(!schoolsAll||nq.length<2) return [];
+  return schoolsAll.filter(x=>x.n.toLowerCase().includes(nq)||x.pc.startsWith(nq)||x.city.toLowerCase().includes(nq)).slice(0,10);
+}
+function schoolLabel(x){const g=gradeOf(x.n);return `${esc(x.n)} <span class="note">${esc([x.addr,[x.pc,x.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}${g!=null?` · grade ${fmtG(g)}`:""}</span>`}
+
+function selectSchool(x,fly=true){
+  selSchool=x; store.set("cphnabo.selschool",x);
+  document.getElementById("schoolResults").innerHTML="";
+  drawSchool(); renderSchoolSel(); renderAddr();
+  if(fly){ map.flyTo([x.lat,x.lon],14,{duration:.6}); document.getElementById("schoolCard").scrollIntoView({behavior:"smooth",block:"nearest"}); }
+}
+function selectSchoolByName(name,near){
+  if(!schoolsAll){alert("The school list hasn't loaded yet. Click Fetch/Refresh amenity data first.");return}
+  const c=schoolsAll.filter(x=>x.n===name); if(!c.length) return;
+  c.sort((a,b)=>hav(near.lat,near.lon,a.lat,a.lon)-hav(near.lat,near.lon,b.lat,b.lon));
+  selectSchool(c[0]);
+}
+function drawSchool(){
+  schoolLayer.clearLayers(); if(!selSchool) return;
+  L.circle([selSchool.lat,selSchool.lon],{radius:walkKm(prefs.walk)*1000,color:"#2b8a3e",weight:2,dashArray:"6 6",fillOpacity:.06}).addTo(schoolLayer)
+    .bindTooltip(`About ${prefs.walk} min walk from ${esc(selSchool.n)}`);
+  L.circleMarker([selSchool.lat,selSchool.lon],{radius:8,color:"#2b8a3e",fillColor:"#2b8a3e",fillOpacity:1}).bindTooltip(esc(selSchool.n)).addTo(schoolLayer);
+}
+const pcCache={};
+async function postcodesNear(x){
+  const key=`${x.lat},${x.lon},${prefs.walk}`; if(pcCache[key]) return pcCache[key];
+  const r=walkKm(prefs.walk)*0.9, set=new Set();
+  if(/^\d{4}$/.test(x.pc)) set.add(x.pc);
+  const pts=[[x.lat,x.lon]];
+  for(let i=0;i<8;i++){const t=i*Math.PI/4;pts.push([x.lat+r/111*Math.cos(t),x.lon+r/(111*Math.cos(x.lat*Math.PI/180))*Math.sin(t)])}
+  let okCalls=0;
+  for(const [la,lo] of pts){
+    try{const j=await (await fetch(`https://photon.komoot.io/reverse?lat=${la}&lon=${lo}&limit=1`)).json();
+        const pc=j.features?.[0]?.properties?.postcode; okCalls++; if(pc&&/^\d{4}$/.test(pc)) set.add(pc);}catch(e){}
+  }
+  if(!okCalls){ // offline fallback: our postcode areas that overlap the walking circle
+    for(const a of areas){const z=(a.name.match(/^\d{4}(?!–)/)||[])[0]; if(z&&hav(x.lat,x.lon,a.lat,a.lon)<walkKm(prefs.walk)+a.r) set.add(z)}
+  }
+  return pcCache[key]=[...set].sort();
+}
+async function renderSchoolSel(){
+  const el=document.getElementById("schoolSel"); if(!selSchool){return}
+  const x=selSchool, g=gradeOf(x.n);
+  el.innerHTML=`<div><b>${esc(x.n)}</b> <button class="small" id="schoolUnsel">Clear</button></div>
+    <div>${esc([x.addr,[x.pc,x.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))||"(no address in OpenStreetMap)"}${g!=null?` · exam grade <b>${fmtG(g)}</b>`:grades?" · not in your grades file":" · import grades to see this school's average"}</div>
+    <label for="walkSel">Walking distance</label>
+    <select id="walkSel">${[5,10,15,20,25,30].map(m=>`<option value="${m}" ${m===prefs.walk?"selected":""}>Up to ${m} min (~${walkKm(m).toFixed(1).replace(".",",")} km straight line)</option>`).join("")}</select>
+    <p style="margin:10px 0 4px"><b>Homes for sale within walking distance</b></p>
+    <div id="pcLinks" class="note">Finding postcodes inside the walking circle…</div>
+    <p class="note">Postcodes can stretch well beyond the circle, so check each listing: paste its address into the box on the right to get the exact walking time to this school.</p>`;
+  document.getElementById("schoolUnsel").onclick=()=>{selSchool=null;store.del("cphnabo.selschool");schoolLayer.clearLayers();el.innerHTML="Choose a school to see which postcodes are within walking distance and open home searches there.";renderAddr()};
+  document.getElementById("walkSel").onchange=e=>{prefs.walk=+e.target.value;savePrefs();drawSchool();renderSchoolSel();renderAddr()};
+  const pcs=await postcodesNear(x); if(selSchool!==x) return;
+  const box=document.getElementById("pcLinks"); if(!box) return;
+  box.innerHTML = pcs.length ? pcs.map(z=>`<div style="margin:4px 0">${z}: ${listingLinksZip(z).map(l=>`<a class="btnlink" style="padding:3px 8px;font-size:12px;margin-right:4px" href="${l.url}" target="_blank" rel="noopener">${l.label.split(" ")[0]} ↗</a>`).join("")}</div>`).join("")
+    : "Couldn't determine the postcodes here.";
+}
+
+async function checkAddresses(){
+  const ta=document.getElementById("addrList"), st=document.getElementById("addrStatus"), btn=document.getElementById("addrBtn");
+  store.set("cphnabo.addrtext",ta.value);
+  const lines=ta.value.split(/\n/).map(v=>v.trim()).filter(Boolean).slice(0,25);
+  if(!lines.length) return;
+  btn.disabled=true; addrResults=[];
+  for(let i=0;i<lines.length;i++){
+    st.textContent=`Checking ${i+1} of ${lines.length}…`;
+    const res={q:lines[i]};
+    try{
+      const g=await geocode(lines[i]);
+      if(!g) res.err="Address not found";
+      else{
+        Object.assign(res,{label:g.label,lat:g.lat,lon:g.lon});
+        try{
+          const ar=`(around:1000,${g.lat},${g.lon})`;
+          const j=await overpass(`[out:json][timeout:30];${CATS.food.q}${ar};out count;${CATS.ent.q}${ar};out count;${CATS.green.q}${ar};out count;`);
+          const c=j.elements.filter(e=>e.type==="count").map(e=>+e.tags.total);
+          if(c.length===3) res.c={food:c[0],ent:c[1],green:c[2]};
+        }catch(e){}
+      }
+    }catch(e){res.err="Lookup failed"}
+    addrResults.push(res); renderAddr();
+    await sleep(900);
+  }
+  store.set("cphnabo.addr",addrResults);
+  const bad=addrResults.filter(r=>r.err).length;
+  st.textContent=`Checked ${addrResults.length} address${addrResults.length===1?"":"es"}${bad?`, ${bad} not found (add postcode and town)`:""}.`;
+  btn.disabled=false;
+}
+function renderAddr(){
+  const tbl=document.getElementById("addrTbl"); if(!tbl) return;
+  addrLayer.clearLayers();
+  if(!addrResults.length){tbl.innerHTML="";return}
+  const rows=addrResults.map((r,i)=>{
+    if(r.err) return {r,i};
+    const toS = selSchool? walkMinOf(hav(r.lat,r.lon,selSchool.lat,selSchool.lon)) : null;
+    const ns = nearestSchools(r.lat,r.lon,3);
+    const stn = stations? nearestStation(r.lat,r.lon) : null;
+    const cm = commute(r);
+    const area = areas.reduce((b,a)=>{const d=hav(r.lat,r.lon,a.lat,a.lon);return !b||d<b.d?{a,d}:b},null).a;
+    return {r,i,toS,ns,stn,cm,area};
+  });
+  if(selSchool) rows.sort((a,b)=>(a.toS??1e9)-(b.toS??1e9));
+  tbl.innerHTML=`<thead><tr><th>#</th><th></th><th>Address</th>${selSchool?`<th>Walk to ${esc(selSchool.n)}</th>`:""}<th>Nearest schools (walk)</th><th>Nearest station</th><th>Commute</th><th>Within 1 km: food / bars &amp; culture / parks</th><th>Area price est.</th></tr></thead><tbody>`+
+    rows.map(x=>{const r=x.r;
+      if(r.err) return `<tr><td>${x.i+1}</td><td></td><td>${esc(r.q)} <span class="pill no">${esc(r.err)}</span></td><td colspan="${selSchool?6:5}"></td></tr>`;
+      const ok = x.toS!=null && x.toS<=prefs.walk;
+      const ppm = val(x.area, prefs.ptype==="house"&&val(x.area,"house")!=null?"house":"flat");
+      return `<tr data-i="${x.i}"><td>${x.i+1}</td><td></td><td><b>${esc(r.q)}</b><br><span class="note">${esc(r.label||"")}</span></td>
+        ${selSchool?`<td>${Math.round(x.toS)} min ${ok?'<span class="pill ok">walkable</span>':'<span class="pill no">too far</span>'}</td>`:""}
+        <td style="text-align:left">${x.ns.map(n=>{const g=gradeOf(n.x.n);return `<span class="chip" data-school="${esc(n.x.n)}" data-lat="${n.x.lat}" data-lon="${n.x.lon}">${esc(n.x.n)} · ${Math.round(walkMinOf(n.d))} min${g!=null?` · ${fmtG(g)}`:""}</span>`}).join("")||'<span class="note">load data first</span>'}</td>
+        <td>${x.stn?`${esc(x.stn.s[2]||"station")} · ${Math.round(walkMinOf(x.stn.d))} min`:"–"}</td>
+        <td>${x.cm?`${Math.round(x.cm.min)} min`:'<span class="note">set workplace</span>'}</td>
+        <td>${r.c?`${r.c.food} / ${r.c.ent} / ${r.c.green}`:"–"}</td>
+        <td>${fmt(ppm)} kr/m²<br><span class="note">${esc(x.area.name)}</span></td></tr>`}).join("")+"</tbody>";
+  tbl.querySelectorAll("tbody tr[data-i]").forEach(tr=>tr.onclick=e=>{ if(e.target.closest(".chip")) return; const r=addrResults[+tr.dataset.i]; map.flyTo([r.lat,r.lon],15,{duration:.6}); document.getElementById("map").scrollIntoView({behavior:"smooth",block:"nearest"}) });
+  tbl.querySelectorAll(".chip[data-school]").forEach(c=>c.onclick=()=>selectSchoolByName(c.dataset.school,{lat:+c.dataset.lat,lon:+c.dataset.lon}));
+  for(const x of rows){ if(x.r.err) continue;
+    L.marker([x.r.lat,x.r.lon],{icon:L.divIcon({className:"",html:`<div style="background:#1f6feb;color:#fff;border-radius:50%;width:22px;height:22px;line-height:22px;text-align:center;font:600 12px system-ui;border:2px solid #fff;box-shadow:0 1px 3px #0006">${x.i+1}</div>`,iconSize:[22,22],iconAnchor:[11,11]})})
+      .bindTooltip(`${x.i+1}. ${esc(x.r.q)}${x.toS!=null?`<br>${Math.round(x.toS)} min walk to ${esc(selSchool.n)}`:""}`).addTo(addrLayer);
+  }
+}
+function initSchoolsUI(){
+  schoolLayer=L.layerGroup().addTo(map); addrLayer=L.layerGroup().addTo(map);
+  const q=document.getElementById("schoolQ"), res=document.getElementById("schoolResults");
+  q.oninput=()=>{
+    if(!schoolsAll){res.innerHTML='<span class="note">The school list loads with the amenity data. Click Fetch/Refresh amenity data if it hasn\'t loaded.</span>';return}
+    const hits=searchSchools(q.value);
+    res.innerHTML=hits.map((x,i)=>`<button data-i="${i}">${schoolLabel(x)}</button>`).join("") || (q.value.trim().length>=2?'<span class="note">No matching school.</span>':"");
+    res.querySelectorAll("button").forEach(b=>b.onclick=()=>{q.value=hits[+b.dataset.i].n;selectSchool(hits[+b.dataset.i])});
+  };
+  document.getElementById("addrList").value=store.get("cphnabo.addrtext","");
+  document.getElementById("addrBtn").onclick=checkAddresses;
+  document.getElementById("detail").addEventListener("click",e=>{const c=e.target.closest(".chip[data-school]"); if(c&&selected!=null) selectSchoolByName(c.dataset.school,areas[selected])});
+  if(selSchool){drawSchool();renderSchoolSel()}
+  renderAddr();
+}
+
+// ---------- Workplace ----------
+function setWork(w){prefs.work=w;savePrefs();document.getElementById("workStatus").innerHTML=w?`Workplace: <b>${esc(w.label)}</b>`:"No workplace set.";render()}
+async function geocode(q){
+  const vb="&bbox=11.8,55.5,12.8,56.2";
+  try{
+    const r=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lat=55.68&lon=12.57${vb}`);
+    const j=await r.json(); const f=j.features?.[0];
+    if(f){const p=f.properties;return {lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],label:[p.name,p.street&&(p.street+(p.housenumber?" "+p.housenumber:"")),p.city].filter(Boolean).join(", ")}}
+  }catch(e){}
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=dk&q=${encodeURIComponent(q)}`);
+  const j=await r.json(); if(j[0]) return {lat:+j[0].lat,lon:+j[0].lon,label:j[0].display_name.split(",").slice(0,3).join(",")};
+  return null;
+}
+document.getElementById("workBtn").onclick=async()=>{
+  const q=document.getElementById("workq").value.trim(), st=document.getElementById("workStatus"); if(!q) return;
+  st.textContent="Searching…";
+  try{const w=await geocode(q); if(w){setWork(w);map.flyTo([w.lat,w.lon],12,{duration:.6})} else st.innerHTML='<span class="hint">Address not found. Try adding the city, or use Set on map.</span>'}
+  catch(e){st.innerHTML='<span class="hint">Address search is unavailable right now. Use Set on map instead.</span>'}
+};
+document.getElementById("workq").onkeydown=e=>{if(e.key==="Enter")document.getElementById("workBtn").click()};
+document.getElementById("workMapBtn").onclick=()=>{pickingWork=true;map.getContainer().style.cursor="crosshair";document.getElementById("workStatus").textContent="Click your workplace on the map…";document.getElementById("map").scrollIntoView({behavior:"smooth",block:"nearest"})};
+document.getElementById("workClear").onclick=()=>setWork(null);
+
+// ---------- Export ----------
+function exportCsv(){
+  const rows=scoreAll().sort((x,y)=>y.score-x.score);
+  const head=["area","municipality","score","price_per_m2","est_cost","in_budget","commute_min","school_grade","school_grade_source","stations","bus_stops","food","entertainment","parks_sports","schools","kindergartens"];
+  const lines=[head.join(",")].concat(rows.map(r=>[`"${r.a.name}"`,r.a.muni,r.score.toFixed(1),r.m.ppm,Math.round(r.m.cost),r.m.fits,r.m.cm?Math.round(r.m.cm.min):"",r.m.grade.toFixed(2),r.m.si.src,r.m.rail??"",r.m.bus??"",r.m.food??"",r.m.entN??"",r.m.green??"",r.m.school??"",r.m.kinder??""].join(",")));
+  const url=URL.createObjectURL(new Blob([lines.join("\n")],{type:"text/csv"}));
+  const l=document.createElement("a");l.href=url;l.download="copenhagen-neighbourhoods.csv";l.click();URL.revokeObjectURL(url);
+}
+
+// ---------- Init ----------
+for(const id of ["ptype","budget","size","mode","maxc"]){
+  const el=document.getElementById(id); el.value=prefs[id];
+  el.oninput=()=>{prefs[id]=(id==="ptype"||id==="mode")?el.value:+el.value;savePrefs();render()};
+}
+document.getElementById("fetchBtn").onclick=e=>fetchAll(!!e.target.dataset.force);
+document.getElementById("csvBtn").onclick=exportCsv;
+document.getElementById("schoolFile").onchange=e=>{if(e.target.files[0])importGrades(e.target.files[0]);e.target.value=""};
+document.getElementById("schoolClear").onclick=()=>{grades=null;store.del(K.grades);render()};
+buildWeights(); initMap(); initSchoolsUI();
+setWork(prefs.work);
+const cached = areas.filter(a=>osm[a.name]&&Date.now()-osm[a.name].t<CACHE_TTL).length;
+if(cached===areas.length && stations){const b=document.getElementById("fetchBtn");b.textContent="Refresh amenity data";b.dataset.force="1";document.getElementById("status").textContent=`Using cached amenity data for ${cached} areas.`}
+else fetchAll(false);
+</script>
+</body>
+</html>
